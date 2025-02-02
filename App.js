@@ -15,13 +15,13 @@ import * as Constants from 'expo-constants';
 import * as Application from 'expo-application';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
-import MapView, { Marker, Polyline } from 'react-native-maps';
+import MapView, { Marker, Polyline, Circle } from 'react-native-maps';
 import uuid from 'react-native-uuid';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const ORS_APIKEY = '5b3ce3597851110001cf6248308d79ba8f934d9a8c85e2893b04c563'; // Replace with your actual API key
 
-// Helper function to calculate distance using Haversine formula.
+// Helper function to calculate distance using the Haversine formula.
 function getDistance(lat1, lon1, lat2, lon2) {
   const R = 6371000; // Earth's radius in meters
   const toRad = (value) => (value * Math.PI) / 180;
@@ -37,12 +37,65 @@ function getDistance(lat1, lon1, lat2, lon2) {
   return R * c;
 }
 
+/**
+ * drawArea
+ *
+ * A helper function to return a Circle overlay.
+ *
+ * @param {Object} coordinate - A coordinate object with properties latitude and longitude.
+ * @param {string} type - The type of area. Pass "safe" for a green (safe) area and "danger" for a red (dangerous) area.
+ * @returns {JSX.Element|null} A Circle component or null if no coordinate is provided.
+ */
+function drawArea(coordinate, type) {
+  if (!coordinate) return null;
+
+  let fillColor, strokeColor, radius;
+  switch (type) {
+    case 'extremely unsafe':
+      fillColor = 'rgba(255,0,0,0.3)';   
+      strokeColor = 'rgba(255,0,0,0.5)';
+      radius = 200;                     
+      break;
+    case 'unsafe':
+      fillColor = 'rgba(255,102,0,0.3)';   
+      strokeColor = 'rgba(255,102,0,0.5)';
+      radius = 150;                    
+      break;
+    case 'moderate':
+      fillColor = 'rgba(255,255,0,0.3)';   
+      strokeColor = 'rgba(255,255,0,0.5)';
+      radius = 100;                        
+      break;
+    case 'safe':
+      fillColor = 'rgba(0,255,0,0.3)';     
+      strokeColor = 'rgba(0,255,0,0.5)';
+      radius = 50;                         
+      break;
+    case 'extremely safe':
+      fillColor = 'rgba(0,128,0,0.3)';      
+      strokeColor = 'rgba(0,128,0,0.5)';
+      radius = 25;                         
+      break;
+    default:
+      return null;
+  }
+
+  return (
+    <Circle
+      center={coordinate}
+      radius={radius}
+      fillColor={fillColor}
+      strokeColor={strokeColor}
+    />
+  );
+}
+
+
 function HomeScreen({ navigation }) {
   const [location, setLocation] = useState(null);
   const [locationStatus, setLocationStatus] = useState('Fetching location...');
   const [deviceId, setDeviceId] = useState('');
 
-  // Animation refs
   const headerOpacity = useRef(new Animated.Value(0)).current;
   const cardTranslateY = useRef(new Animated.Value(40)).current;
 
@@ -57,17 +110,13 @@ function HomeScreen({ navigation }) {
     setLocationStatus('Location fetched');
   };
 
-  // Get the unique device ID and location when component mounts.
   useEffect(() => {
     const getUniqueDeviceId = async () => {
       try {
         let uniqueDeviceId = '';
-
         if (Application.androidId) {
-          // ✅ Android: Use `androidId`
           uniqueDeviceId = Application.androidId;
         } else {
-          // ✅ iOS: Generate and store UUID
           let storedUuid = await AsyncStorage.getItem('device_uuid');
           if (!storedUuid) {
             storedUuid = uuid.v4();
@@ -75,7 +124,6 @@ function HomeScreen({ navigation }) {
           }
           uniqueDeviceId = storedUuid;
         }
-
         setDeviceId(uniqueDeviceId);
       } catch (error) {
         console.error("Error fetching device ID:", error);
@@ -102,7 +150,6 @@ function HomeScreen({ navigation }) {
     }).start();
   }, []);
 
-
   const handleCreatePassword = () => {
     Alert.prompt(
       'Create Password',
@@ -120,7 +167,6 @@ function HomeScreen({ navigation }) {
               console.log("Password cannot be empty.");
               return;
             }
-  
             try {
               const response = await fetch("https://runzen-api.w1111am.xyz/v1/setpasswd", {
                 method: "POST",
@@ -129,15 +175,13 @@ function HomeScreen({ navigation }) {
                   "Content-Type": "application/json"
                 },
                 body: JSON.stringify({
-                  uuid: deviceId,  // 设备唯一 ID
-                  password: inputPassword  // 用户输入的密码
+                  uuid: deviceId,
+                  password: inputPassword
                 })
               });
-  
               if (!response.ok) {
                 throw new Error(`API request failed with status ${response.status}`);
               }
-  
               const responseData = await response.json();
               console.log("Password saved successfully:", responseData, inputPassword);
             } catch (error) {
@@ -178,16 +222,16 @@ function HomeScreen({ navigation }) {
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.button, styles.mapButton]}
-              onPress={() => navigation.navigate('MapScreen', { userLocation: location, deviceId })} // Pass deviceId
+              onPress={() => navigation.navigate('MapScreen', { userLocation: location, deviceId })}
             >
               <Text style={styles.buttonText}>Open Map</Text>
             </TouchableOpacity>
             <TouchableOpacity
-            style={[styles.button, styles.mapButton]}
-            onPress={handleCreatePassword}
-          >
-            <Text style={styles.buttonText}>Create Password</Text>
-          </TouchableOpacity>
+              style={[styles.button, styles.mapButton]}
+              onPress={handleCreatePassword}
+            >
+              <Text style={styles.buttonText}>Create Password</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </View>
@@ -203,7 +247,6 @@ function MapScreen({ route }) {
   const [alertShown, setAlertShown] = useState(false);
   const [disableDeviationCheck, setDisableDeviationCheck] = useState(false);
 
-  // Animation for header on MapScreen.
   const mapHeaderOpacity = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     Animated.timing(mapHeaderOpacity, {
@@ -219,7 +262,6 @@ function MapScreen({ route }) {
     routeCoordinatesRef.current = routeCoordinates;
   }, [routeCoordinates]);
 
-  // If no userLocation is passed, fetch it.
   useEffect(() => {
     if (!userLocation) {
       (async () => {
@@ -234,7 +276,6 @@ function MapScreen({ route }) {
     }
   }, [userLocation]);
 
-  // Continuously watch user's location.
   useEffect(() => {
     let subscription;
     const subscribeLocation = async () => {
@@ -256,13 +297,12 @@ function MapScreen({ route }) {
               if (d < minDistance) minDistance = d;
             });
 
-            const threshold = 1; // CHANGE THIS TO SOMETHING BETTER LATER
+            const threshold = 1; 
             if (minDistance > threshold && !alertShown) {
               console.log("User is off course. Minimum distance from route:", minDistance);
               setAlertShown(true);
 
               if (Platform.OS === 'ios') {
-                // send a request to the timeout API
                 const startTimeoutAPI = async () => {
                   try {
                     const response = await fetch("https://runzen-api.w1111am.xyz/v1/timeout_start", {
@@ -271,22 +311,17 @@ function MapScreen({ route }) {
                         "Authorization": "ARRAY_BAG",
                         "Content-Type": "application/json"
                       },
-                      body: JSON.stringify({ uuid: deviceId }) // Pass the device ID
+                      body: JSON.stringify({ uuid: deviceId })
                     });
-              
                     if (!response.ok) {
                       throw new Error(`API request failed with status ${response.status}`);
                     }
-              
                     const responseData = await response.json();
                     console.log("Timeout API response:", responseData);
                   } catch (error) {
                     console.error("Error calling timeout API:", error);
                   }
-                  //wait 10 seconds and call the check timeout API
-
                   await new Promise(resolve => setTimeout(resolve, 10000));
-
                   try {
                     const checkResponse = await fetch("https://runzen-api.w1111am.xyz/v1/timeout_check", {
                       method: "POST",
@@ -296,14 +331,11 @@ function MapScreen({ route }) {
                       },
                       body: JSON.stringify({ uuid: deviceId })
                     });
-                  
                     if (!checkResponse.ok) {
                       throw new Error(`Timeout check API failed with status ${checkResponse.status}`);
                     }
-                  
                     const checkData = await checkResponse.json();
                     console.log("Timeout check response:", checkData);
-                    // if timer is 1, disable the deviation check and close the alert, since we called 911 (Vibration function should be here in future)
                     if (checkData.timer === 1) {
                       setDisableDeviationCheck(true);
                       setAlertShown(false);
@@ -312,10 +344,7 @@ function MapScreen({ route }) {
                     console.error("Error checking timeout status:", error);
                   }
                 };
-              
-                //start the timeout logic, call the API 
                 startTimeoutAPI();
-              
                 Alert.prompt(
                   "Are you OK?",
                   "Enter your password:",
@@ -329,14 +358,11 @@ function MapScreen({ route }) {
                         },
                         body: JSON.stringify({ uuid: deviceId, password })
                       });
-                
                       if (!response.ok) {
                         throw new Error(`Password validation failed with status ${response.status}`);
                       }
-                
                       const data = await response.json();
                       console.log("Password validation response:", data);
-                
                       if (data.message === "Password validated successfully") {
                         setDisableDeviationCheck(true);
                         setAlertShown(false);
@@ -349,25 +375,10 @@ function MapScreen({ route }) {
                     }
                   }
                 );
-                
               } else {
-                //Alert.alert(
-                //  "Are you OK?",
-                //  "Simulated prompt: Assume password entered is wrong.",
-                //  [
-                //    {
-                //      text: "OK",
-                //      onPress: () => {
-                //        console.log("oh no");
-                //        setAlertShown(false);
-                //      }
-                //    }
-                //  ]
-                //);
-                // To be done in the future
+                
               }
             }
-
           }
         }
       );
@@ -380,7 +391,6 @@ function MapScreen({ route }) {
     };
   }, [alertShown, disableDeviationCheck]);
 
-  // Handle tap on the map to set destination and fetch route.
   const handleMapTap = (e) => {
     const tappedLocation = e.nativeEvent.coordinate;
     setDisableDeviationCheck(false);
@@ -395,21 +405,17 @@ function MapScreen({ route }) {
     }
   };
 
-  // Fetch route using OpenRouteService API.
   const fetchRoute = async (start, end) => {
     if (!start || !end || !start.longitude || !start.latitude || !end.longitude || !end.latitude) {
       Alert.alert("Error", "Invalid coordinates for route.");
       return;
     }
-
     const url = `https://api.openrouteservice.org/v2/directions/foot-walking?api_key=${ORS_APIKEY}&start=${start.longitude},${start.latitude}&end=${end.longitude},${end.latitude}`;
     console.log(`Fetching route from: ${start.latitude}, ${start.longitude} to ${end.latitude}, ${end.longitude}`);
-
     try {
       const response = await fetch(url);
       const data = await response.json();
       console.log('API Response:', data);
-
       if (data.features && data.features[0] && data.features[0].geometry) {
         const route = data.features[0].geometry.coordinates.map(coord => ({
           latitude: coord[1],
@@ -445,11 +451,17 @@ function MapScreen({ route }) {
             followsUserLocation={true}
           >
             {destinationCoords && (
-              <Marker
-                coordinate={destinationCoords}
-                title="Destination"
-                pinColor="red"
-              />
+              <>
+                <Marker
+                  coordinate={destinationCoords}
+                  title="Destination"
+                  pinColor="red"
+                />
+                {/* Use the drawArea helper function to draw the safe area */}
+                {drawArea(destinationCoords, 'safe')}
+                {/* Use the drawArea helper function to draw the dangerous area */}
+                {drawArea(destinationCoords, 'extremely unsafe')}
+              </>
             )}
             {routeCoordinates.length > 0 && (
               <Polyline
