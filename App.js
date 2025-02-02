@@ -21,7 +21,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const ORS_APIKEY = '5b3ce3597851110001cf6248308d79ba8f934d9a8c85e2893b04c563'; // Replace with your actual API key
 
-
 // Helper function to calculate distance using Haversine formula.
 function getDistance(lat1, lon1, lat2, lon2) {
   const R = 6371000; // Earth's radius in meters
@@ -406,7 +405,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   button: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#6d856e',
     paddingVertical: 12,
     paddingHorizontal: 25,
     borderRadius: 25,
@@ -426,7 +425,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   mapButton: {
-    backgroundColor: '#007BFF',
+    backgroundColor: '#75899e',
   },
   mapScreenContainer: {
     flex: 1,
