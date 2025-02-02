@@ -76,15 +76,12 @@ function HomeScreen({ navigation }) {
         console.log('Error fetching address:', error);
       }
     };
-  
+
     fetchAddress(); // Initial fetch
     const interval = setInterval(fetchAddress, 5000); // Fetch every 5 seconds
-  
+
     return () => clearInterval(interval); // Cleanup on unmount
   }, [deviceId]); // Re-run if deviceId changes
-  
-
-  
 
   useEffect(() => {
     const getUniqueDeviceId = async () => {
@@ -126,7 +123,6 @@ function HomeScreen({ navigation }) {
     }).start();
   }, []);
 
-
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.gradientBackground}>
@@ -150,71 +146,71 @@ function HomeScreen({ navigation }) {
             </View>
 
             <View style={styles.card}>
-            <Text style={styles.cardTitle}>Suspicious Locations</Text>
-            <Text style={styles.cardContent}>
-              Address: {address ? address : "Fetching..."} {/* Show the address once it's available */}
-            </Text>
+              <Text style={styles.cardTitle}>Suspicious Locations</Text>
+              <Text style={styles.cardContent}>
+                Address: {address ? address : "Fetching..."}
+              </Text>
             </View>
-
           </Animated.View>
+
           <View style={styles.buttonContainer}>
-        <TouchableOpacity style={styles.button} onPress={getLocation}>
-          <Text style={styles.buttonText}>Refresh Location</Text>
-        </TouchableOpacity>
+            <TouchableOpacity style={styles.button} onPress={getLocation}>
+              <Text style={styles.buttonText}>Refresh Location</Text>
+            </TouchableOpacity>
 
-      {/* Updated Open Map button */}
-      <TouchableOpacity
-        style={[styles.button, styles.mapButton]}
-        onPress={async () => {
-          // Show password creation dialog
-          Alert.prompt(
-            "Create Password",
-            "Enter your new password:",
-            [
-              {
-                text: 'Cancel',
-                onPress: () => console.log('Password creation canceled'),
-                style: 'cancel'
-              },
-              {
-                text: 'Send',
-                onPress: async (inputPassword) => {
-                  if (!inputPassword) {
-                    console.log("Password cannot be empty.");
-                    return;
-                  }
-                  try {
-                    const response = await fetch("https://runzen-api.w1111am.xyz/v1/setpasswd", {
-                      method: "POST",
-                      headers: {
-                        "Authorization": "ARRAY_BAG",
-                        "Content-Type": "application/json",
-                      },
-                      body: JSON.stringify({ uuid: deviceId, password: inputPassword }),
-                    });
+            {/* Updated Open Map button */}
+            <TouchableOpacity
+              style={[styles.button, styles.mapButton]}
+              onPress={async () => {
+                // Show password creation dialog
+                Alert.prompt(
+                  "Create Password",
+                  "Enter your new password:",
+                  [
+                    {
+                      text: 'Cancel',
+                      onPress: () => console.log('Password creation canceled'),
+                      style: 'cancel'
+                    },
+                    {
+                      text: 'Send',
+                      onPress: async (inputPassword) => {
+                        if (!inputPassword) {
+                          console.log("Password cannot be empty.");
+                          return;
+                        }
+                        try {
+                          const response = await fetch("https://runzen-api.w1111am.xyz/v1/setpasswd", {
+                            method: "POST",
+                            headers: {
+                              "Authorization": "ARRAY_BAG",
+                              "Content-Type": "application/json",
+                            },
+                            body: JSON.stringify({ uuid: deviceId, password: inputPassword }),
+                          });
 
-                    if (!response.ok) {
-                      throw new Error(`API request failed with status ${response.status}`);
+                          if (!response.ok) {
+                            throw new Error(`API request failed with status ${response.status}`);
+                          }
+
+                          const responseData = await response.json();
+                          console.log("Password set successfully:", responseData);
+
+                          // After setting password, proceed to Map screen
+                          navigation.navigate('MapScreen', { userLocation: location, deviceId });
+                        } catch (error) {
+                          console.error("Error setting password:", error);
+                          Alert.alert("Error", "Failed to set password. Please try again.");
+                        }
+                      }
                     }
-
-                    const responseData = await response.json();
-                    console.log("Password set successfully:", responseData);
-
-                    // After setting password, proceed to Map screen
-                    navigation.navigate('MapScreen', { userLocation: location, deviceId });
-                  } catch (error) {
-                    console.error("Error setting password:", error);
-                    Alert.alert("Error", "Failed to set password. Please try again.");
-                  }
-                }
-              }
-            ],
-          );
-        }}
-      >
-        <Text style={styles.buttonText}>Open Map</Text>
-      </TouchableOpacity>
-      </View>
+                  ],
+                );
+              }}
+            >
+              <Text style={styles.buttonText}>Open Map</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     </SafeAreaView>
@@ -222,7 +218,7 @@ function HomeScreen({ navigation }) {
 }
 
 function MapScreen({ route }) {
-  const { userLocation, deviceId } = route.params; 
+  const { userLocation, deviceId } = route.params;
   const [location, setLocation] = useState(userLocation);
   const [destinationCoords, setDestinationCoords] = useState(null);
   const [routeCoordinates, setRouteCoordinates] = useState([]);
@@ -240,30 +236,6 @@ function MapScreen({ route }) {
       useNativeDriver: true,
     }).start();
   }, []);
-
-  const getAddress = async (lat, lng) => {
-    const url = `https://api.openrouteservice.org/geocode/reverse?point.lon=${lng}&point.lat=${lat}&api_key=${ORS_APIKEY}`;
-  
-    try {
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error("Error with API request");
-      }
-  
-      const data = await response.json();
-      if (data.features && data.features.length > 0) {
-        const address = data.features[0].properties.label;
-        console.log("Address:", address);
-        return address;
-      } else {
-        console.log("No address found");
-        return "No address found";
-      }
-    } catch (error) {
-      console.error("Error:", error);
-      return "Error with API request";
-    }
-  };
 
   const routeCoordinatesRef = useRef(routeCoordinates);
   useEffect(() => {
@@ -284,12 +256,33 @@ function MapScreen({ route }) {
     }
   }, [userLocation]);
 
+  const getAddress = async (lat, lng) => {
+    const url = `https://api.openrouteservice.org/geocode/reverse?point.lon=${lng}&point.lat=${lat}&api_key=${ORS_APIKEY}`;
+
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error("Error with API request");
+      }
+      const data = await response.json();
+      if (data.features && data.features.length > 0) {
+        const address = data.features[0].properties.label;
+        console.log("Address:", address);
+        return address;
+      } else {
+        console.log("No address found");
+        return "No address found";
+      }
+    } catch (error) {
+      console.error("Error:", error);
+      return "Error with API request";
+    }
+  };
+
   const handleSuspiciousButton = async () => {
     if (location) {
       const address = await getAddress(location.latitude, location.longitude);  // Get the address based on location
-  
       console.log(`Suspicious location detected: ${address}`);
-  
       try {
         const response = await axios.post(
           'https://runzen-api.w1111am.xyz/v1/update_address',
@@ -299,11 +292,10 @@ function MapScreen({ route }) {
           },
           {
             headers: {
-              Authorization: 'ARRAY_BAG',  
+              Authorization: 'ARRAY_BAG',
             },
           }
         );
-        
         console.log("Address sent successfully:", response.data);
         alert('Suspicious location reported!');
       } catch (error) {
@@ -314,48 +306,90 @@ function MapScreen({ route }) {
       console.log("Location not available yet.");
     }
   };
-  const predictSafetyForRoute = async (routeCoordinates) => {
+
+ // Route-based prediction, but sending each lat/lon individually
+ const predictSafetyForRoute = async (routeCoordinates) => {
     try {
-      const response = await axios.post(
-        'https://runzen-api.w1111am.xyz/v1/predict-route',
-        {
-          uuid: deviceId,
-          routeCoordinates,  // Send the entire route's coordinates
-        },
-        {
-          headers: {
-            Authorization: 'ARRAY_BAG',
-          },
+      // 1) Build a subset of at most 30 points, evenly spaced along the route.
+      let pointsToCheck = [];
+      const maxCalls = 5;
+      
+      if (routeCoordinates.length <= maxCalls) {
+        // If the route has 30 or fewer points, just use them all.
+        pointsToCheck = routeCoordinates;
+      } else {
+        // Otherwise, spread out 30 calls evenly
+        for (let i = 0; i < maxCalls; i++) {
+          // pick an index proportionally across the route
+          const index = Math.floor(i * routeCoordinates.length / maxCalls);
+          pointsToCheck.push(routeCoordinates[index]);
         }
-      );
-  
-      const safety = response.data.safety;
-      console.log("Predicted Route Safety:", safety);
-  
-      // Check if the safety response is a string (like "Extremely Safe")
-      if (safety == 'Extremely Safe') {
+      }
+
+      // 2) Now loop through these (up to) 30 points and make calls
+      let overallSafety = null;
+
+      for (const point of pointsToCheck) {
+        const { latitude, longitude } = point;
+
+        // Send each lat/lon individually (max 30)
+        const response = await axios.post(
+          'https://runzen-api.w1111am.xyz/v1/predict',
+          {
+            uuid: deviceId,
+            latitude,
+            longitude,
+          },
+          {
+            headers: {
+              Authorization: 'ARRAY_BAG',
+            },
+          }
+        );
+
+        const safety = response.data.safety;
+        console.log("Individual point safety:", safety);
+
+        // Example aggregator logic
+        if (safety === 'Unsafe') {
+          overallSafety = 'Unsafe';
+        } else if (safety === 'Extremely Safe') {
+          if (overallSafety !== 'Unsafe') {
+            overallSafety = 'Extremely Safe';
+          }
+        } else if (safety === 'Safe') {
+          if (!overallSafety || overallSafety === 'Safe') {
+            overallSafety = 'Safe';
+          }
+        }
+      }
+
+      if (!overallSafety) {
+        overallSafety = 'Safety prediction is unclear';
+      }
+
+      console.log("Predicted overall route safety:", overallSafety);
+      if (overallSafety === 'Extremely Safe') {
         alert("This route is extremely safe! You can proceed.");
-      } else if (safety == 'Safe') {
-        alert("This route is safe!"); } 
-      else if (safety == 'Unsafe') {
+      } else if (overallSafety === 'Safe') {
+        alert("This route is safe!");
+      } else if (overallSafety === 'Unsafe') {
         alert("This route is unsafe! Please consider choosing another path.");
       } else {
         alert("Safety prediction is unclear. Please try again.");
       }
-  
-      return safety;
+
+      return overallSafety;
     } catch (error) {
       console.error('Error fetching safety prediction:', error);
       alert("Failed to fetch safety prediction. Please try again.");
       return null;
     }
   };
-  
   const handleRoutePrediction = async () => {
     if (routeCoordinates && routeCoordinates.length > 0) {
       const safety = await predictSafetyForRoute(routeCoordinates);
       if (safety !== null) {
-        // Optionally do something with the safety score
         console.log("Route safety score:", safety);
       } else {
         alert("Unable to calculate safety score for the route.");
@@ -364,47 +398,6 @@ function MapScreen({ route }) {
       alert("No route coordinates available.");
     }
   };
-
-  const predictSafety = async (latitude, longitude) => {
-    try {
-      const response = await axios.post(
-        'https://runzen-api.w1111am.xyz/v1/predict',
-        {
-          uuid: deviceId,
-          latitude,
-          longitude,
-        },
-        {
-          headers: {
-            Authorization: 'ARRAY_BAG',
-          },
-        }
-      );
-      
-      const safety = response.data;
-      console.log("Predicted Safety:", safety, latitude, longitude);
-      
-      return safety;  // You can use this to update the UI
-  
-    } catch (error) {
-      console.error('Error fetching safety prediction:', error);
-      return null;
-    }
-  };
-
-  useEffect(() => {
-  if (location) {
-    predictSafety(destinationCoords.latitude, destinationCoords.longitude).then((safety) => {
-      if (safety !== null) {
-        // Example: Change marker color based on safety level
-        setMarkerColor(safety > 0.5 ? "green" : "red");
-      }
-    });
-  }
-}, [location]);
-
-
-  
 
   useEffect(() => {
     let subscription;
@@ -474,23 +467,21 @@ function MapScreen({ route }) {
                     console.error("Error checking timeout status:", error);
                   }
                 };
-              let soundObject = null; // Store the sound object globally
+                let soundObject = null; // Store the sound object globally
 
                 startTimeoutAPI();
-                const systemSound = require('./assets/alert_sound.mp3'); // Correct way to load local assets
+                const systemSound = require('./assets/alert_sound.mp3'); // Make sure this asset actually exists
 
-                // Function to play the sound
                 const playSound = async () => {
                   try {
                     const { sound } = await Audio.Sound.createAsync(systemSound);
-                    soundObject = sound; // Store the sound reference
-                    await sound.playAsync(); // Play the sound
+                    soundObject = sound;
+                    await sound.playAsync();
                   } catch (error) {
                     console.error("Error playing sound:", error);
                   }
                 };
 
-                // Replace the vibrate with the sound
                 playSound();
 
                 Alert.prompt(
@@ -513,25 +504,25 @@ function MapScreen({ route }) {
                       console.log("Password validation response:", data);
                       if (data.message === "Password validated successfully") {
                         if (soundObject) {
-                          await soundObject.stopAsync(); // Stop the sound
+                          await soundObject.stopAsync();
                         }
                         setDisableDeviationCheck(true);
                         setAlertShown(false);
                       } else {
                         if (soundObject) {
-                          await soundObject.stopAsync(); 
+                          await soundObject.stopAsync();
                         }
                         console.log("Invalid password");
                       }
                     } catch (error) {
                       if (soundObject) {
-                        await soundObject.stopAsync(); 
+                        await soundObject.stopAsync();
                       }
                     }
                   }
                 );
               } else {
-                
+                // If you really don't care about Android, do nothing here
               }
             }
           }
@@ -560,33 +551,43 @@ function MapScreen({ route }) {
     }
   };
 
-  
   const fetchRoute = async (start, end) => {
     if (!start || !end || !start.longitude || !start.latitude || !end.longitude || !end.latitude) {
       Alert.alert("Error", "Invalid coordinates for route.");
       return;
     }
-  
+
     const url = `https://api.openrouteservice.org/v2/directions/foot-walking?api_key=${ORS_APIKEY}&start=${start.longitude},${start.latitude}&end=${end.longitude},${end.latitude}`;
     console.log(`Fetching route from: ${start.latitude}, ${start.longitude} to ${end.latitude}, ${end.longitude}`);
-  
+
     try {
       const response = await fetch(url);
       const data = await response.json();
       console.log('API Response:', data);
-  
+
       if (data.features && data.features[0] && data.features[0].geometry) {
-        const route = data.features[0].geometry.coordinates.map(coord => ({
+        // Build the full route
+        const fullRoute = data.features[0].geometry.coordinates.map(coord => ({
           latitude: coord[1],
           longitude: coord[0],
         }));
-  
-        console.log('Route Coordinates:', route);
-        setRouteCoordinates(route);
-  
-        // Call the safety prediction function for the entire route
-        await handleRoutePrediction();  // This will calculate and display the safety score
-  
+
+        // For partial route, 40% example
+        const sliceCount = Math.floor(fullRoute.length * 0.4);
+        const partialRoute = fullRoute.slice(0, sliceCount);
+
+        console.log('Full Route Coordinates (length):', fullRoute.length);
+        console.log('Using Partial Route (length):', partialRoute.length);
+
+        const sampledCount = Math.floor(fullRoute.length * 0.4);
+        const partialForApi = fullRoute.slice(0, sampledCount);
+        // We only set routeCoordinates to the partial route
+        setRouteCoordinates(fullRoute);
+        
+        await predictSafetyForRoute(partialForApi);
+
+        // Now do the overall route safety check
+        await handleRoutePrediction();
       } else {
         Alert.alert('Error', 'Route not found.');
       }
@@ -594,7 +595,7 @@ function MapScreen({ route }) {
       console.error('Error fetching route:', error);
       Alert.alert("Error", "Failed to fetch route.");
     }
-  };  
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -613,7 +614,6 @@ function MapScreen({ route }) {
             }}
             onPress={handleMapTap}
             showsUserLocation={true}
-            followsUserLocation={true}
           >
             {destinationCoords && (
               <>
@@ -636,10 +636,10 @@ function MapScreen({ route }) {
         </View>
 
         <View style={styles.suspiciousButtonContainer}>
-        <TouchableOpacity style={styles.suspiciousButton} onPress={handleSuspiciousButton}>
-          <Text style={styles.buttonText}>Suspicious</Text>
-        </TouchableOpacity>
-      </View>
+          <TouchableOpacity style={styles.suspiciousButton} onPress={handleSuspiciousButton}>
+            <Text style={styles.buttonText}>Suspicious</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -672,7 +672,7 @@ const styles = StyleSheet.create({
   },
   gradientBackground: {
     flex: 1,
-    backgroundColor: '#ffffff', // Solid white background
+    backgroundColor: '#ffffff',
   },
   homeContainer: {
     flex: 1,
@@ -731,13 +731,13 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
     elevation: 3,
   },
+  mapButton: {
+    backgroundColor: '#75899e',
+  },
   buttonText: {
     fontSize: 18,
     color: '#fff',
     fontWeight: 'bold',
-  },
-  mapButton: {
-    backgroundColor: '#75899e',
   },
   mapScreenContainer: {
     flex: 1,
@@ -758,18 +758,14 @@ const styles = StyleSheet.create({
   },
   suspiciousButtonContainer: {
     position: 'absolute',
-    bottom: 30,  
-    left: 20,    
-    right: 20,   
+    bottom: 30,
+    left: 20,
+    right: 20,
     alignItems: 'center',
   },
   suspiciousButton: {
     backgroundColor: 'rgba(255, 0, 0, 0.7)',
     padding: 10,
     borderRadius: 10,
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
   },
 });
