@@ -207,19 +207,18 @@ function MapScreen({ route }) {
               console.log("User is off course. Minimum distance from route:", minDistance);
               setAlertShown(true);
 
-              const timeout = setTimeout(() => {
-                console.log("oh no");
-                setAlertShown(false); // Optionally, hide the alert after timeout
-              }, 10000); // 10 seconds timeout
-
               if (Platform.OS === 'ios') {
+                let timeout = setTimeout(() => {
+                  console.log("Time out, Call immediatly");
+                  setAlertShown(false);
+                }, 10000);
                 Alert.prompt(
                   "Are you OK?",
                   "Enter your password:",
                   (password) => {
                     if (password === "hello") {
                       setDisableDeviationCheck(true);
-                      clearTimeout(timeout); // Correct password, cancel the timeout
+                      clearTimeout(timeout); //cancel timeout if password is right
                     } else {
                       console.log("oh no");
                     }
