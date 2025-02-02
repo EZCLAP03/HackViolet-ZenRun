@@ -236,7 +236,7 @@ function HomeScreen({ navigation }) {
               "Please enter your password to access the map:",
               async (password) => {
                 try {
-                  const response = await fetch("https://runzen-api.w1111am.xyz/v1/valpasswd", {
+                  const response = await fetch("https://runzen-api.w1111am.xyz/v1/setpasswd", {
                     method: "POST",
                     headers: {
                       "Authorization": "ARRAY_BAG",
@@ -246,20 +246,12 @@ function HomeScreen({ navigation }) {
                   });
 
                   if (!response.ok) {
-                    throw new Error(`Password validation failed with status ${response.status}`);
+                    throw new Error(`API request failed with status ${response.status}`);
                   }
-
-                  const data = await response.json();
-                  if (data.message === "Password validated successfully") {
-                    // Navigate to the Map screen if password is correct
-                    navigation.navigate('MapScreen', { userLocation: location, deviceId });
-                  } else {
-                    console.log("Invalid password");
-                    Alert.alert("Invalid password", "Please try again.");
-                  }
+                  const responseData = await response.json();
+                  console.log("Password saved successfully:", responseData, inputPassword);
                 } catch (error) {
-                  console.error("Error validating password:", error);
-                  Alert.alert("Error", "Failed to validate password. Please try again.");
+                  console.error("Error saving password:", error);
                 }
               },
             );
