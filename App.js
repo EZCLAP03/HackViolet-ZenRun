@@ -11,9 +11,12 @@ import {
 } from 'react-native';
 import * as Location from 'expo-location';
 import * as Constants from 'expo-constants';
+import * as Application from 'expo-application'; 
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import MapView, { Marker, Polyline } from 'react-native-maps';
+import uuid from 'react-native-uuid';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const ORS_APIKEY = '5b3ce3597851110001cf6248308d79ba8f934d9a8c85e2893b04c563'; // Replace with your actual OpenRouteService API key
 
@@ -51,8 +54,31 @@ function HomeScreen({ navigation }) {
 
   // Get the unique device ID and location when component mounts.
   useEffect(() => {
-    const uniqueDeviceId = Constants.deviceId; // Using deviceId from Constants
-    setDeviceId(uniqueDeviceId);
+    const getUniqueDeviceId = async () => {
+      try {
+        let uniqueDeviceId = '';
+
+        if (Application.androidId) {
+          // ✅ Android: Use `androidId`
+          uniqueDeviceId = Application.androidId;
+        } else {
+          // ✅ iOS: Generate and store UUID
+          let storedUuid = await AsyncStorage.getItem('device_uuid');
+          if (!storedUuid) {
+            storedUuid = uuid.v4();
+            await AsyncStorage.setItem('device_uuid', storedUuid);
+          }
+          uniqueDeviceId = storedUuid;
+        }
+
+        setDeviceId(uniqueDeviceId);
+      } catch (error) {
+        console.error("Error fetching device ID:", error);
+        setDeviceId("Error fetching ID");
+      }
+    };
+
+    getUniqueDeviceId();
     getLocation();
   }, []);
 
