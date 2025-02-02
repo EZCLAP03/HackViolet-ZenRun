@@ -102,6 +102,28 @@ function HomeScreen({ navigation }) {
     }).start();
   }, []);
 
+
+  const handleCreatePassword = () => {
+    Alert.prompt(
+      'Create Password',
+      'Enter your new password:',
+      [
+        {
+          text: 'Cancel',
+          onPress: () => console.log('Password creation canceled'),
+        },
+        {
+          text: 'Send',
+          onPress: (inputPassword) => {
+            setPassword(inputPassword); //change this
+            console.log('Password saved:', inputPassword);
+          },
+        },
+      ],
+      'secure-text'
+    );
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.gradientBackground}>
@@ -134,6 +156,13 @@ function HomeScreen({ navigation }) {
             >
               <Text style={styles.buttonText}>Open Map</Text>
             </TouchableOpacity>
+
+            <TouchableOpacity
+            style={[styles.button, styles.mapButton]}
+            onPress={handleCreatePassword}
+          >
+            <Text style={styles.buttonText}>Create Password</Text>
+          </TouchableOpacity>
           </View>
         </View>
       </View>
