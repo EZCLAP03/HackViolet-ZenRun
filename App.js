@@ -155,49 +155,6 @@ function HomeScreen({ navigation }) {
     }).start();
   }, []);
 
-  const handleCreatePassword = () => {
-    Alert.prompt(
-      'Create Password',
-      'Enter your new password:',
-      [
-        {
-          text: 'Cancel',
-          onPress: () => console.log('Password creation canceled'),
-          style: 'cancel'
-        },
-        {
-          text: 'Send',
-          onPress: async (inputPassword) => {
-            if (!inputPassword) {
-              console.log("Password cannot be empty.");
-              return;
-            }
-            try {
-              const response = await fetch("https://runzen-api.w1111am.xyz/v1/setpasswd", {
-                method: "POST",
-                headers: {
-                  "Authorization": "ARRAY_BAG",
-                  "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                  uuid: deviceId,
-                  password: inputPassword
-                })
-              });
-              if (!response.ok) {
-                throw new Error(`API request failed with status ${response.status}`);
-              }
-              const responseData = await response.json();
-              console.log("Password saved successfully:", responseData, inputPassword);
-            } catch (error) {
-              console.error("Error saving password:", error);
-            }
-          }
-        }
-      ],
-      "secure-text"
-    );
-  };  
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -226,39 +183,58 @@ function HomeScreen({ navigation }) {
           <Text style={styles.buttonText}>Refresh Location</Text>
         </TouchableOpacity>
 
-        {/* Updated Open Map button */}
-        <TouchableOpacity
-          style={[styles.button, styles.mapButton]}
-          onPress={async () => {
-            // Show password dialog
-            Alert.prompt(
-              "Enter Password",
-              "Please enter your password to access the map:",
-              async (password) => {
-                try {
-                  const response = await fetch("https://runzen-api.w1111am.xyz/v1/setpasswd", {
-                    method: "POST",
-                    headers: {
-                      "Authorization": "ARRAY_BAG",
-                      "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({ uuid: deviceId, password }),
-                  });
-
-                  if (!response.ok) {
-                    throw new Error(`API request failed with status ${response.status}`);
-                  }
-                  const responseData = await response.json();
-                  console.log("Password saved successfully:", responseData, inputPassword);
-                } catch (error) {
-                  console.error("Error saving password:", error);
-                }
+      {/* Updated Open Map button */}
+      <TouchableOpacity
+        style={[styles.button, styles.mapButton]}
+        onPress={async () => {
+          // Show password creation dialog
+          Alert.prompt(
+            "Create Password",
+            "Enter your new password:",
+            [
+              {
+                text: 'Cancel',
+                onPress: () => console.log('Password creation canceled'),
+                style: 'cancel'
               },
-            );
-          }}
-        >
-          <Text style={styles.buttonText}>Open Map</Text>
-        </TouchableOpacity>
+              {
+                text: 'Send',
+                onPress: async (inputPassword) => {
+                  if (!inputPassword) {
+                    console.log("Password cannot be empty.");
+                    return;
+                  }
+                  try {
+                    const response = await fetch("https://runzen-api.w1111am.xyz/v1/setpasswd", {
+                      method: "POST",
+                      headers: {
+                        "Authorization": "ARRAY_BAG",
+                        "Content-Type": "application/json",
+                      },
+                      body: JSON.stringify({ uuid: deviceId, password: inputPassword }),
+                    });
+
+                    if (!response.ok) {
+                      throw new Error(`API request failed with status ${response.status}`);
+                    }
+
+                    const responseData = await response.json();
+                    console.log("Password set successfully:", responseData);
+
+                    // After setting password, proceed to Map screen
+                    navigation.navigate('MapScreen', { userLocation: location, deviceId });
+                  } catch (error) {
+                    console.error("Error setting password:", error);
+                    Alert.alert("Error", "Failed to set password. Please try again.");
+                  }
+                }
+              }
+            ],
+          );
+        }}
+      >
+        <Text style={styles.buttonText}>Open Map</Text>
+      </TouchableOpacity>
       </View>
         </View>
       </View>
@@ -449,11 +425,15 @@ function MapScreen({ route }) {
                         setDisableDeviationCheck(true);
                         setAlertShown(false);
                       } else {
+                        if (soundObject) {
+                          await soundObject.stopAsync(); 
+                        }
                         console.log("Invalid password");
                       }
                     } catch (error) {
-                      console.error("Error validating password:", error);
-                      Alert.alert("Error", "Failed to validate password. Please try again.");
+                      if (soundObject) {
+                        await soundObject.stopAsync(); 
+                      }
                     }
                   }
                 );
