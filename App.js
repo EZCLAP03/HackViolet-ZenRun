@@ -1,14 +1,23 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, Alert, Platform } from 'react-native';
+import {
+  StyleSheet,
+  Text,
+  View,
+  TouchableOpacity,
+  Alert,
+  Platform,
+  SafeAreaView,
+  StatusBar
+} from 'react-native';
 import * as Location from 'expo-location';
-import * as Constants from 'expo-constants'; // Import Constants API
+import * as Constants from 'expo-constants';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import MapView, { Marker, Polyline } from 'react-native-maps';
 
 const ORS_APIKEY = '5b3ce3597851110001cf6248308d79ba8f934d9a8c85e2893b04c563'; // Replace with your actual OpenRouteService API key
 
-// A helper function to calculate distance (in meters) between two lat/lon coordinates using the Haversine formula.
+// Helper function to calculate distance using Haversine formula.
 function getDistance(lat1, lon1, lat2, lon2) {
   const R = 6371000; // Earth's radius in meters
   const toRad = (value) => (value * Math.PI) / 180;
@@ -40,7 +49,7 @@ function HomeScreen({ navigation }) {
     setLocationStatus('Location fetched');
   };
 
-  // Get the unique device ID
+  // Get the unique device ID and location when component mounts.
   useEffect(() => {
     const uniqueDeviceId = Constants.deviceId; // Using deviceId from Constants
     setDeviceId(uniqueDeviceId);
@@ -48,29 +57,35 @@ function HomeScreen({ navigation }) {
   }, []);
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.header}>ZenRunning</Text>
-      <View style={styles.locationContainer}>
-        <Text style={styles.locationStatus}>{locationStatus}</Text>
-        {location && (
-          <Text style={styles.locationText}>
-            Latitude: {location.latitude}, Longitude: {location.longitude}
-          </Text>
-        )}
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.homeContainer}>
+        <Text style={styles.header}>ZenRunning</Text>
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Location Status</Text>
+          <Text style={styles.cardContent}>{locationStatus}</Text>
+          {location && (
+            <Text style={styles.cardContent}>
+              Latitude: {location.latitude.toFixed(5)} | Longitude: {location.longitude.toFixed(5)}
+            </Text>
+          )}
+        </View>
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Device Information</Text>
+          <Text style={styles.cardContent}>Device ID: {deviceId}</Text>
+        </View>
+        <View style={styles.buttonContainer}>
+          <TouchableOpacity style={styles.button} onPress={getLocation}>
+            <Text style={styles.buttonText}>Refresh Location</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.button, styles.mapButton]}
+            onPress={() => navigation.navigate('MapScreen', { userLocation: location })}
+          >
+            <Text style={styles.buttonText}>Open Map</Text>
+          </TouchableOpacity>
+        </View>
       </View>
-      <Text style={styles.deviceIdText}>
-        Device ID: {deviceId}  {/* Display unique device ID */}
-      </Text>
-      <TouchableOpacity style={styles.button} onPress={getLocation}>
-        <Text style={styles.buttonText}>Get Current Location</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={styles.button}
-        onPress={() => navigation.navigate('MapScreen', { userLocation: location })}
-      >
-        <Text style={styles.buttonText}>Open Map</Text>
-      </TouchableOpacity>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -78,17 +93,16 @@ function MapScreen({ route }) {
   const { userLocation } = route.params;
   const [location, setLocation] = useState(userLocation);
   const [destinationCoords, setDestinationCoords] = useState(null);
-  const [routeCoordinates, setRouteCoordinates] = useState([]); // Store route polyline coordinates
-  const [alertShown, setAlertShown] = useState(false); // To prevent multiple alerts
-  const [disableDeviationCheck, setDisableDeviationCheck] = useState(false); // Disable checking once correct password is entered
+  const [routeCoordinates, setRouteCoordinates] = useState([]);
+  const [alertShown, setAlertShown] = useState(false);
+  const [disableDeviationCheck, setDisableDeviationCheck] = useState(false);
 
-  // A ref to always have the latest routeCoordinates for our location subscription callback
   const routeCoordinatesRef = useRef(routeCoordinates);
   useEffect(() => {
     routeCoordinatesRef.current = routeCoordinates;
   }, [routeCoordinates]);
 
-  // Fetch user's current location if not passed as prop
+  // If no userLocation is passed, fetch it.
   useEffect(() => {
     if (!userLocation) {
       (async () => {
@@ -103,7 +117,7 @@ function MapScreen({ route }) {
     }
   }, [userLocation]);
 
-  // Continuously watch user's location
+  // Continuously watch user's location.
   useEffect(() => {
     let subscription;
     const subscribeLocation = async () => {
@@ -113,9 +127,7 @@ function MapScreen({ route }) {
           const currentCoords = loc.coords;
           setLocation(currentCoords);
           
-          // Only check deviation if a route exists and deviation checking is enabled
           if (!disableDeviationCheck && routeCoordinatesRef.current.length > 0) {
-            // Compute minimum distance from user's current location to any point on the route
             let minDistance = Infinity;
             routeCoordinatesRef.current.forEach((point) => {
               const d = getDistance(
@@ -127,29 +139,24 @@ function MapScreen({ route }) {
               if (d < minDistance) minDistance = d;
             });
             
-            // Threshold for deviation (in meters)
             const threshold = 25;
             if (minDistance > threshold && !alertShown) {
               console.log("User is off course. Minimum distance from route:", minDistance);
               setAlertShown(true);
-              // Show a prompt asking if the user is OK and to enter a password
               if (Platform.OS === 'ios') {
                 Alert.prompt(
                   "Are you OK?",
                   "Enter your password:",
                   (password) => {
                     if (password === "hello") {
-                      // Correct password disables further deviation checks until a new destination is set
                       setDisableDeviationCheck(true);
                     } else {
-                      console.log("kidnapped");
+                      console.log("oh no");
                     }
-                    // Reset alertShown so future deviations can trigger the prompt if deviation checking is enabled
                     setAlertShown(false);
                   }
                 );
               } else {
-                // For Android, simulate the prompt using Alert.alert and assume wrong password for demonstration.
                 Alert.alert(
                   "Are you OK?",
                   "Simulated prompt: Assume password entered is wrong.",
@@ -157,7 +164,7 @@ function MapScreen({ route }) {
                     {
                       text: "OK",
                       onPress: () => {
-                        console.log("kidnapped");
+                        console.log("oh no");
                         setAlertShown(false);
                       }
                     }
@@ -177,10 +184,9 @@ function MapScreen({ route }) {
     };
   }, [alertShown, disableDeviationCheck]);
 
-  // Handle map tap event to set destination and fetch route
+  // Handle tap on the map to set destination and fetch route.
   const handleMapTap = (e) => {
     const tappedLocation = e.nativeEvent.coordinate;
-    // Reset deviation checking when a new destination is chosen.
     setDisableDeviationCheck(false);
     setAlertShown(false);
     if (
@@ -188,15 +194,12 @@ function MapScreen({ route }) {
       (destinationCoords.latitude !== tappedLocation.latitude ||
         destinationCoords.longitude !== tappedLocation.longitude)
     ) {
-      console.log("Starting Location:", location);
-      console.log("Final Destination:", tappedLocation);
       setDestinationCoords(tappedLocation);
-      // Fetch route from OpenRouteService
       fetchRoute(location, tappedLocation);
     }
   };
 
-  // Fetch route using OpenRouteService API
+  // Fetch route using OpenRouteService API.
   const fetchRoute = async (start, end) => {
     if (!start || !end || !start.longitude || !start.latitude || !end.longitude || !end.latitude) {
       Alert.alert("Error", "Invalid coordinates for route.");
@@ -227,33 +230,41 @@ function MapScreen({ route }) {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.header}>Set Your Destination</Text>
-      <MapView
-        style={styles.map}
-        initialRegion={{
-          latitude: location ? location.latitude : 37.7749,
-          longitude: location ? location.longitude : -122.4194,
-          latitudeDelta: 0.0922,
-          longitudeDelta: 0.0421,
-        }}
-        onPress={handleMapTap} // Handle map taps to set destination
-        showsUserLocation={true} // Show user's location with blue circle
-        followsUserLocation={true} // Keep the map focused on the user’s location
-      >
-        {destinationCoords && (
-          <Marker coordinate={destinationCoords} title="Destination" pinColor="red" />
-        )}
-        {routeCoordinates.length > 0 && (
-          <Polyline
-            coordinates={routeCoordinates}
-            strokeWidth={4}
-            strokeColor="red"
-            lineDashPattern={[1, 5]} // For dashed line style
-          />
-        )}
-      </MapView>
-    </View>
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.mapScreenContainer}>
+        <Text style={styles.mapHeader}>Set Your Destination</Text>
+        <View style={styles.mapContainer}>
+          <MapView
+            style={styles.map}
+            initialRegion={{
+              latitude: location ? location.latitude : 37.7749,
+              longitude: location ? location.longitude : -122.4194,
+              latitudeDelta: 0.0922,
+              longitudeDelta: 0.0421,
+            }}
+            onPress={handleMapTap}
+            showsUserLocation={true}
+            followsUserLocation={true}
+          >
+            {destinationCoords && (
+              <Marker
+                coordinate={destinationCoords}
+                title="Destination"
+                pinColor="red"
+              />
+            )}
+            {routeCoordinates.length > 0 && (
+              <Polyline
+                coordinates={routeCoordinates}
+                strokeWidth={4}
+                strokeColor="red"
+                lineDashPattern={[1, 5]}
+              />
+            )}
+          </MapView>
+        </View>
+      </View>
+    </SafeAreaView>
   );
 }
 
@@ -261,58 +272,112 @@ const Stack = createStackNavigator();
 
 export default function App() {
   return (
-    <NavigationContainer>
-      <Stack.Navigator>
-        <Stack.Screen name="Home" component={HomeScreen} />
-        <Stack.Screen name="MapScreen" component={MapScreen} />
-      </Stack.Navigator>
-    </NavigationContainer>
+    <>
+      <StatusBar barStyle="dark-content" backgroundColor="#f8f9fa" />
+      <NavigationContainer>
+        <Stack.Navigator
+          screenOptions={{
+            headerShown: false, // We’re handling headers inside our screens.
+          }}
+        >
+          <Stack.Screen name="Home" component={HomeScreen} />
+          <Stack.Screen name="MapScreen" component={MapScreen} />
+        </Stack.Navigator>
+      </NavigationContainer>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
-    paddingTop: 50,
+    backgroundColor: '#f8f9fa'
+  },
+  homeContainer: {
+    flex: 1,
     paddingHorizontal: 20,
-    backgroundColor: '#fff',
+    paddingTop: 20,
+    justifyContent: 'space-evenly',
+    backgroundColor: '#f8f9fa'
   },
   header: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontSize: 32,
+    fontWeight: '600',
     textAlign: 'center',
     marginBottom: 20,
+    color: '#333'
   },
-  locationContainer: {
-    marginBottom: 20,
-    padding: 10,
-    backgroundColor: '#f0f0f0',
+  card: {
+    backgroundColor: '#fff',
     borderRadius: 10,
+    padding: 15,
+    marginVertical: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
-  locationStatus: {
-    fontSize: 16,
-    marginBottom: 10,
-  },
-  locationText: {
+  cardTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '500',
+    marginBottom: 8,
+    color: '#555'
   },
-  deviceIdText: {
+  cardContent: {
     fontSize: 16,
+    color: '#777'
+  },
+  buttonContainer: {
     marginTop: 20,
-    fontWeight: 'bold',
   },
   button: {
     backgroundColor: '#3498db',
-    padding: 15,
+    paddingVertical: 15,
+    borderRadius: 25,
     marginVertical: 10,
-    borderRadius: 5,
     alignItems: 'center',
+    shadowColor: '#3498db',
+    shadowOpacity: 0.4,
+    shadowOffset: { width: 0, height: 3 },
+    shadowRadius: 5,
+    elevation: 4,
+  },
+  mapButton: {
+    backgroundColor: '#2ecc71',
   },
   buttonText: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '600'
+  },
+  mapScreenContainer: {
+    flex: 1,
+    backgroundColor: '#f8f9fa',
+  },
+  mapHeader: {
+    fontSize: 28,
+    fontWeight: '500',
+    textAlign: 'center',
+    paddingVertical: 15,
+    backgroundColor: '#fff',
+    marginHorizontal: 20,
+    marginTop: 20,
+    borderRadius: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+    color: '#333'
+  },
+  mapContainer: {
+    flex: 1,
+    margin: 20,
+    borderRadius: 10,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
   map: {
     width: '100%',
