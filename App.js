@@ -142,7 +142,7 @@ function MapScreen({ route }) {
                       // Correct password disables further deviation checks until a new destination is set
                       setDisableDeviationCheck(true);
                     } else {
-                      console.log("IT FKIN WORKS HAHA");
+                      console.log("kidnapped");
                     }
                     // Reset alertShown so future deviations can trigger the prompt if deviation checking is enabled
                     setAlertShown(false);
@@ -157,7 +157,7 @@ function MapScreen({ route }) {
                     {
                       text: "OK",
                       onPress: () => {
-                        console.log("IT FKIN WORKS HAHA");
+                        console.log("kidnapped");
                         setAlertShown(false);
                       }
                     }
