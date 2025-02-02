@@ -111,18 +111,44 @@ function HomeScreen({ navigation }) {
         {
           text: 'Cancel',
           onPress: () => console.log('Password creation canceled'),
+          style: 'cancel'
         },
         {
           text: 'Send',
-          onPress: (inputPassword) => {
-            setPassword(inputPassword); //change this
-            console.log('Password saved:', inputPassword);
-          },
-        },
+          onPress: async (inputPassword) => {
+            if (!inputPassword) {
+              console.log("Password cannot be empty.");
+              return;
+            }
+  
+            try {
+              const response = await fetch("https://runzen-api.w1111am.xyz/v1/setpasswd", {
+                method: "POST",
+                headers: {
+                  "Authorization": "ARRAY_BAG",
+                  "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                  uuid: deviceId,  // 设备唯一 ID
+                  password: inputPassword  // 用户输入的密码
+                })
+              });
+  
+              if (!response.ok) {
+                throw new Error(`API request failed with status ${response.status}`);
+              }
+  
+              const responseData = await response.json();
+              console.log("Password saved successfully:", responseData, inputPassword);
+            } catch (error) {
+              console.error("Error saving password:", error);
+            }
+          }
+        }
       ],
-      'secure-text'
+      "secure-text"
     );
-  };
+  };  
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -152,11 +178,10 @@ function HomeScreen({ navigation }) {
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.button, styles.mapButton]}
-              onPress={() => navigation.navigate('MapScreen', { userLocation: location })}
+              onPress={() => navigation.navigate('MapScreen', { userLocation: location, deviceId })} // Pass deviceId
             >
               <Text style={styles.buttonText}>Open Map</Text>
             </TouchableOpacity>
-
             <TouchableOpacity
             style={[styles.button, styles.mapButton]}
             onPress={handleCreatePassword}
@@ -171,7 +196,7 @@ function HomeScreen({ navigation }) {
 }
 
 function MapScreen({ route }) {
-  const { userLocation } = route.params;
+  const { userLocation, deviceId } = route.params; 
   const [location, setLocation] = useState(userLocation);
   const [destinationCoords, setDestinationCoords] = useState(null);
   const [routeCoordinates, setRouteCoordinates] = useState([]);
@@ -237,38 +262,109 @@ function MapScreen({ route }) {
               setAlertShown(true);
 
               if (Platform.OS === 'ios') {
-                let timeout = setTimeout(() => {
-                  console.log("Time out, Call immediatly");
-                  setAlertShown(false);
-                }, 10000);
+                // send a request to the timeout API
+                const startTimeoutAPI = async () => {
+                  try {
+                    const response = await fetch("https://runzen-api.w1111am.xyz/v1/timeout_start", {
+                      method: "POST",
+                      headers: {
+                        "Authorization": "ARRAY_BAG",
+                        "Content-Type": "application/json"
+                      },
+                      body: JSON.stringify({ uuid: deviceId }) // Pass the device ID
+                    });
+              
+                    if (!response.ok) {
+                      throw new Error(`API request failed with status ${response.status}`);
+                    }
+              
+                    const responseData = await response.json();
+                    console.log("Timeout API response:", responseData);
+                  } catch (error) {
+                    console.error("Error calling timeout API:", error);
+                  }
+                  //wait 10 seconds and call the check timeout API
+
+                  await new Promise(resolve => setTimeout(resolve, 10000));
+
+                  try {
+                    const checkResponse = await fetch("https://runzen-api.w1111am.xyz/v1/timeout_check", {
+                      method: "POST",
+                      headers: {
+                        "Authorization": "ARRAY_BAG",
+                        "Content-Type": "application/json"
+                      },
+                      body: JSON.stringify({ uuid: deviceId })
+                    });
+                  
+                    if (!checkResponse.ok) {
+                      throw new Error(`Timeout check API failed with status ${checkResponse.status}`);
+                    }
+                  
+                    const checkData = await checkResponse.json();
+                    console.log("Timeout check response:", checkData);
+                    // if timer is 1, disable the deviation check and close the alert, since we called 911 (Vibration function should be here in future)
+                    if (checkData.timer === 1) {
+                      setDisableDeviationCheck(true);
+                      setAlertShown(false);
+                    }
+                  } catch (error) {
+                    console.error("Error checking timeout status:", error);
+                  }
+                };
+              
+                //start the timeout logic, call the API 
+                startTimeoutAPI();
+              
                 Alert.prompt(
                   "Are you OK?",
                   "Enter your password:",
-                  (password) => {
-                    if (password === "hello") {
-                      setDisableDeviationCheck(true);
-                      clearTimeout(timeout); //cancel timeout if password is right
-                    } else {
-                      console.log("oh no");
+                  async (password) => {
+                    try {
+                      const response = await fetch("https://runzen-api.w1111am.xyz/v1/valpasswd", {
+                        method: "POST",
+                        headers: {
+                          "Authorization": "ARRAY_BAG",
+                          "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify({ uuid: deviceId, password })
+                      });
+                
+                      if (!response.ok) {
+                        throw new Error(`Password validation failed with status ${response.status}`);
+                      }
+                
+                      const data = await response.json();
+                      console.log("Password validation response:", data);
+                
+                      if (data.message === "Password validated successfully") {
+                        setDisableDeviationCheck(true);
+                        setAlertShown(false);
+                      } else {
+                        console.log("Invalid password");
+                      }
+                    } catch (error) {
+                      console.error("Error validating password:", error);
+                      Alert.alert("Error", "Failed to validate password. Please try again.");
                     }
-                    setAlertShown(false);
                   }
                 );
+                
               } else {
-                Alert.alert(
-                  "Are you OK?",
-                  "Simulated prompt: Assume password entered is wrong.",
-                  [
-                    {
-                      text: "OK",
-                      onPress: () => {
-                        console.log("oh no");
-                        setAlertShown(false);
-                      }
-                    }
-                  ]
-                );
-                // This timeout will trigger after 10 seconds if no response.
+                //Alert.alert(
+                //  "Are you OK?",
+                //  "Simulated prompt: Assume password entered is wrong.",
+                //  [
+                //    {
+                //      text: "OK",
+                //      onPress: () => {
+                //        console.log("oh no");
+                //        setAlertShown(false);
+                //      }
+                //    }
+                //  ]
+                //);
+                // To be done in the future
               }
             }
 
