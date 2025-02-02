@@ -11,6 +11,7 @@ import {
   Animated,
 } from 'react-native';
 import * as Location from 'expo-location';
+import { Audio } from 'expo-av';  // For playing sound
 import * as Constants from 'expo-constants';
 import * as Application from 'expo-application';
 import { NavigationContainer } from '@react-navigation/native';
@@ -54,27 +55,27 @@ function drawArea(coordinate, type) {
     case 'extremely unsafe':
       fillColor = 'rgba(255,0,0,0.3)';   
       strokeColor = 'rgba(255,0,0,0.5)';
-      radius = 200;                     
+      radius = 20;                     
       break;
     case 'unsafe':
       fillColor = 'rgba(255,102,0,0.3)';   
       strokeColor = 'rgba(255,102,0,0.5)';
-      radius = 150;                    
+      radius = 20;                    
       break;
     case 'moderate':
       fillColor = 'rgba(255,255,0,0.3)';   
       strokeColor = 'rgba(255,255,0,0.5)';
-      radius = 100;                        
+      radius = 20;                        
       break;
     case 'safe':
       fillColor = 'rgba(0,255,0,0.3)';     
       strokeColor = 'rgba(0,255,0,0.5)';
-      radius = 50;                         
+      radius = 20;                         
       break;
     case 'extremely safe':
       fillColor = 'rgba(0,128,0,0.3)';      
       strokeColor = 'rgba(0,128,0,0.5)';
-      radius = 25;                         
+      radius = 20;                         
       break;
     default:
       return null;
@@ -217,22 +218,52 @@ function HomeScreen({ navigation }) {
             </View>
           </Animated.View>
           <View style={styles.buttonContainer}>
-            <TouchableOpacity style={styles.button} onPress={getLocation}>
-              <Text style={styles.buttonText}>Refresh Location</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.button, styles.mapButton]}
-              onPress={() => navigation.navigate('MapScreen', { userLocation: location, deviceId })}
-            >
-              <Text style={styles.buttonText}>Open Map</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.button, styles.mapButton]}
-              onPress={handleCreatePassword}
-            >
-              <Text style={styles.buttonText}>Create Password</Text>
-            </TouchableOpacity>
-          </View>
+        <TouchableOpacity style={styles.button} onPress={getLocation}>
+          <Text style={styles.buttonText}>Refresh Location</Text>
+        </TouchableOpacity>
+
+        {/* Updated Open Map button */}
+        <TouchableOpacity
+          style={[styles.button, styles.mapButton]}
+          onPress={async () => {
+            // Show password dialog
+            Alert.prompt(
+              "Enter Password",
+              "Please enter your password to access the map:",
+              async (password) => {
+                try {
+                  const response = await fetch("https://runzen-api.w1111am.xyz/v1/valpasswd", {
+                    method: "POST",
+                    headers: {
+                      "Authorization": "ARRAY_BAG",
+                      "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ uuid: deviceId, password }),
+                  });
+
+                  if (!response.ok) {
+                    throw new Error(`Password validation failed with status ${response.status}`);
+                  }
+
+                  const data = await response.json();
+                  if (data.message === "Password validated successfully") {
+                    // Navigate to the Map screen if password is correct
+                    navigation.navigate('MapScreen', { userLocation: location, deviceId });
+                  } else {
+                    console.log("Invalid password");
+                    Alert.alert("Invalid password", "Please try again.");
+                  }
+                } catch (error) {
+                  console.error("Error validating password:", error);
+                  Alert.alert("Error", "Failed to validate password. Please try again.");
+                }
+              },
+            );
+          }}
+        >
+          <Text style={styles.buttonText}>Open Map</Text>
+        </TouchableOpacity>
+      </View>
         </View>
       </View>
     </SafeAreaView>
@@ -344,7 +375,25 @@ function MapScreen({ route }) {
                     console.error("Error checking timeout status:", error);
                   }
                 };
+              let soundObject = null; // Store the sound object globally
+
                 startTimeoutAPI();
+                const systemSound = require('./assets/alert_sound.mp3'); // Correct way to load local assets
+
+                // Function to play the sound
+                const playSound = async () => {
+                  try {
+                    const { sound } = await Audio.Sound.createAsync(systemSound);
+                    soundObject = sound; // Store the sound reference
+                    await sound.playAsync(); // Play the sound
+                  } catch (error) {
+                    console.error("Error playing sound:", error);
+                  }
+                };
+
+                // Replace the vibrate with the sound
+                playSound();
+
                 Alert.prompt(
                   "Are you OK?",
                   "Enter your password:",
@@ -364,6 +413,9 @@ function MapScreen({ route }) {
                       const data = await response.json();
                       console.log("Password validation response:", data);
                       if (data.message === "Password validated successfully") {
+                        if (soundObject) {
+                          await soundObject.stopAsync(); // Stop the sound
+                        }
                         setDisableDeviationCheck(true);
                         setAlertShown(false);
                       } else {
@@ -421,6 +473,9 @@ function MapScreen({ route }) {
           latitude: coord[1],
           longitude: coord[0]
         }));
+
+        console.log('Route Coordinates:', route);
+
         setRouteCoordinates(route);
       } else {
         Alert.alert('Error', 'Route not found.');
