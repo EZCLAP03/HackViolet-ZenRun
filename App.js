@@ -111,6 +111,10 @@ function HomeScreen({ navigation }) {
     setLocationStatus('Location fetched');
   };
 
+  
+
+  
+
   useEffect(() => {
     const getUniqueDeviceId = async () => {
       try {
@@ -200,7 +204,7 @@ function HomeScreen({ navigation }) {
       <View style={styles.gradientBackground}>
         <View style={styles.homeContainer}>
           <Animated.Text style={[styles.header, { opacity: headerOpacity }]}>
-            ZenRunning
+            ZenRun
           </Animated.Text>
           <Animated.View style={[styles.cardContainer, { transform: [{ translateY: cardTranslateY }] }]}>
             <View style={styles.card}>
@@ -288,6 +292,30 @@ function MapScreen({ route }) {
     }).start();
   }, []);
 
+  const getAddress = async (lat, lng) => {
+    const url = `https://api.openrouteservice.org/geocode/reverse?point.lon=${lng}&point.lat=${lat}&api_key=${ORS_APIKEY}`;
+  
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error("Error with API request");
+      }
+  
+      const data = await response.json();
+      if (data.features && data.features.length > 0) {
+        const address = data.features[0].properties.label;
+        console.log("Address:", address);
+        return address;
+      } else {
+        console.log("No address found");
+        return "No address found";
+      }
+    } catch (error) {
+      console.error("Error:", error);
+      return "Error with API request";
+    }
+  };
+
   const routeCoordinatesRef = useRef(routeCoordinates);
   useEffect(() => {
     routeCoordinatesRef.current = routeCoordinates;
@@ -306,6 +334,16 @@ function MapScreen({ route }) {
       })();
     }
   }, [userLocation]);
+
+  const handleSuspiciousButton = () => {
+    if (location) {
+      console.log(`Suspicious location detected: ${getAddress(location.latitude, location.longitude)}`);
+    } else {
+      console.log("Location not available yet.");
+    }
+  };
+
+  
 
   useEffect(() => {
     let subscription;
@@ -528,6 +566,12 @@ function MapScreen({ route }) {
             )}
           </MapView>
         </View>
+
+        <View style={styles.suspiciousButtonContainer}>
+        <TouchableOpacity style={styles.suspiciousButton} onPress={handleSuspiciousButton}>
+          <Text style={styles.buttonText}>Suspicious</Text>
+        </TouchableOpacity>
+      </View>
       </View>
     </SafeAreaView>
   );
@@ -643,5 +687,21 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     borderRadius: 10,
+  },
+  suspiciousButtonContainer: {
+    position: 'absolute',
+    bottom: 30,  
+    left: 20,    
+    right: 20,   
+    alignItems: 'center',
+  },
+  suspiciousButton: {
+    backgroundColor: 'rgba(255, 0, 0, 0.7)',
+    padding: 10,
+    borderRadius: 10,
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: 16,
   },
 });
