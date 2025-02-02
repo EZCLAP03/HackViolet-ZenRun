@@ -1,0 +1,4 @@
+.env
+venv
+__pycache__/app.cpython-313.pyc
+__pycache__/run_predictionFINAL.cpython-313.pyc
