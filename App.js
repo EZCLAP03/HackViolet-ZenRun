@@ -140,11 +140,7 @@ function HomeScreen({ navigation }) {
                 </Text>
               )}
             </View>
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>Device Information</Text>
-              <Text style={styles.cardContent}>Device ID: {deviceId}</Text>
-            </View>
-
+     
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Suspicious Locations</Text>
               <Text style={styles.cardContent}>
@@ -395,7 +391,6 @@ function MapScreen({ route }) {
         alert("Unable to calculate safety score for the route.");
       }
     } else {
-      alert("No route coordinates available.");
     }
   };
 
