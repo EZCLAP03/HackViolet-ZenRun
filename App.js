@@ -39,60 +39,6 @@ function getDistance(lat1, lon1, lat2, lon2) {
   return R * c;
 }
 
-/**
- * drawArea
- *
- * A helper function to return a Circle overlay.
- *
- * @param {Object} coordinate - A coordinate object with properties latitude and longitude.
- * @param {string} type - The type of area. Pass "safe" for a green (safe) area and "danger" for a red (dangerous) area.
- * @returns {JSX.Element|null} A Circle component or null if no coordinate is provided.
- */
-function drawArea(coordinate, type) {
-  if (!coordinate) return null;
-
-  let fillColor, strokeColor, radius;
-  switch (type) {
-    case 'extremely unsafe':
-      fillColor = 'rgba(255,0,0,0.3)';   
-      strokeColor = 'rgba(255,0,0,0.5)';
-      radius = 20;                     
-      break;
-    case 'unsafe':
-      fillColor = 'rgba(255,102,0,0.3)';   
-      strokeColor = 'rgba(255,102,0,0.5)';
-      radius = 20;                    
-      break;
-    case 'moderate':
-      fillColor = 'rgba(255,255,0,0.3)';   
-      strokeColor = 'rgba(255,255,0,0.5)';
-      radius = 20;                        
-      break;
-    case 'safe':
-      fillColor = 'rgba(0,255,0,0.3)';     
-      strokeColor = 'rgba(0,255,0,0.5)';
-      radius = 20;                         
-      break;
-    case 'extremely safe':
-      fillColor = 'rgba(0,128,0,0.3)';      
-      strokeColor = 'rgba(0,128,0,0.5)';
-      radius = 20;                         
-      break;
-    default:
-      return null;
-  }
-
-  return (
-    <Circle
-      center={coordinate}
-      radius={radius}
-      fillColor={fillColor}
-      strokeColor={strokeColor}
-    />
-  );
-}
-
-
 function HomeScreen({ navigation }) {
   const [address, setAddress] = useState('');  // State to store the address
   const [location, setLocation] = useState(null);
@@ -282,6 +228,8 @@ function MapScreen({ route }) {
   const [routeCoordinates, setRouteCoordinates] = useState([]);
   const [alertShown, setAlertShown] = useState(false);
   const [disableDeviationCheck, setDisableDeviationCheck] = useState(false);
+  const [safetyScores, setSafetyScores] = useState([]);
+  const [averageSafetyScore, setAverageSafetyScore] = useState(null);
 
   const mapHeaderOpacity = useRef(new Animated.Value(0)).current;
   useEffect(() => {
@@ -366,6 +314,94 @@ function MapScreen({ route }) {
       console.log("Location not available yet.");
     }
   };
+  const predictSafetyForRoute = async (routeCoordinates) => {
+    try {
+      const response = await axios.post(
+        'https://runzen-api.w1111am.xyz/v1/predict-route',
+        {
+          uuid: deviceId,
+          routeCoordinates,  // Send the entire route's coordinates
+        },
+        {
+          headers: {
+            Authorization: 'ARRAY_BAG',
+          },
+        }
+      );
+  
+      const safety = response.data.safety;
+      console.log("Predicted Route Safety:", safety);
+  
+      // Check if the safety response is a string (like "Extremely Safe")
+      if (safety == 'Extremely Safe') {
+        alert("This route is extremely safe! You can proceed.");
+      } else if (safety == 'Safe') {
+        alert("This route is safe!"); } 
+      else if (safety == 'Unsafe') {
+        alert("This route is unsafe! Please consider choosing another path.");
+      } else {
+        alert("Safety prediction is unclear. Please try again.");
+      }
+  
+      return safety;
+    } catch (error) {
+      console.error('Error fetching safety prediction:', error);
+      alert("Failed to fetch safety prediction. Please try again.");
+      return null;
+    }
+  };
+  
+  const handleRoutePrediction = async () => {
+    if (routeCoordinates && routeCoordinates.length > 0) {
+      const safety = await predictSafetyForRoute(routeCoordinates);
+      if (safety !== null) {
+        // Optionally do something with the safety score
+        console.log("Route safety score:", safety);
+      } else {
+        alert("Unable to calculate safety score for the route.");
+      }
+    } else {
+      alert("No route coordinates available.");
+    }
+  };
+
+  const predictSafety = async (latitude, longitude) => {
+    try {
+      const response = await axios.post(
+        'https://runzen-api.w1111am.xyz/v1/predict',
+        {
+          uuid: deviceId,
+          latitude,
+          longitude,
+        },
+        {
+          headers: {
+            Authorization: 'ARRAY_BAG',
+          },
+        }
+      );
+      
+      const safety = response.data;
+      console.log("Predicted Safety:", safety, latitude, longitude);
+      
+      return safety;  // You can use this to update the UI
+  
+    } catch (error) {
+      console.error('Error fetching safety prediction:', error);
+      return null;
+    }
+  };
+
+  useEffect(() => {
+  if (location) {
+    predictSafety(destinationCoords.latitude, destinationCoords.longitude).then((safety) => {
+      if (safety !== null) {
+        // Example: Change marker color based on safety level
+        setMarkerColor(safety > 0.5 ? "green" : "red");
+      }
+    });
+  }
+}, [location]);
 
 
   
@@ -524,26 +560,33 @@ function MapScreen({ route }) {
     }
   };
 
+  
   const fetchRoute = async (start, end) => {
     if (!start || !end || !start.longitude || !start.latitude || !end.longitude || !end.latitude) {
       Alert.alert("Error", "Invalid coordinates for route.");
       return;
     }
+  
     const url = `https://api.openrouteservice.org/v2/directions/foot-walking?api_key=${ORS_APIKEY}&start=${start.longitude},${start.latitude}&end=${end.longitude},${end.latitude}`;
     console.log(`Fetching route from: ${start.latitude}, ${start.longitude} to ${end.latitude}, ${end.longitude}`);
+  
     try {
       const response = await fetch(url);
       const data = await response.json();
       console.log('API Response:', data);
+  
       if (data.features && data.features[0] && data.features[0].geometry) {
         const route = data.features[0].geometry.coordinates.map(coord => ({
           latitude: coord[1],
-          longitude: coord[0]
+          longitude: coord[0],
         }));
-
+  
         console.log('Route Coordinates:', route);
-
         setRouteCoordinates(route);
+  
+        // Call the safety prediction function for the entire route
+        await handleRoutePrediction();  // This will calculate and display the safety score
+  
       } else {
         Alert.alert('Error', 'Route not found.');
       }
@@ -551,7 +594,7 @@ function MapScreen({ route }) {
       console.error('Error fetching route:', error);
       Alert.alert("Error", "Failed to fetch route.");
     }
-  };
+  };  
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -579,10 +622,6 @@ function MapScreen({ route }) {
                   title="Destination"
                   pinColor="red"
                 />
-                {/* Use the drawArea helper function to draw the safe area */}
-                {drawArea(destinationCoords, 'safe')}
-                {/* Use the drawArea helper function to draw the dangerous area */}
-                {drawArea(destinationCoords, 'extremely unsafe')}
               </>
             )}
             {routeCoordinates.length > 0 && (
