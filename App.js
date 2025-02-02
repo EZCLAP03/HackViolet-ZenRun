@@ -7,18 +7,20 @@ import {
   Alert,
   Platform,
   SafeAreaView,
-  StatusBar
+  StatusBar,
+  Animated,
 } from 'react-native';
 import * as Location from 'expo-location';
 import * as Constants from 'expo-constants';
-import * as Application from 'expo-application'; 
+import * as Application from 'expo-application';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import MapView, { Marker, Polyline } from 'react-native-maps';
 import uuid from 'react-native-uuid';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const ORS_APIKEY = '5b3ce3597851110001cf6248308d79ba8f934d9a8c85e2893b04c563'; // Replace with your actual OpenRouteService API key
+const ORS_APIKEY = '5b3ce3597851110001cf6248308d79ba8f934d9a8c85e2893b04c563'; // Replace with your actual API key
+
 
 // Helper function to calculate distance using Haversine formula.
 function getDistance(lat1, lon1, lat2, lon2) {
@@ -40,6 +42,10 @@ function HomeScreen({ navigation }) {
   const [location, setLocation] = useState(null);
   const [locationStatus, setLocationStatus] = useState('Fetching location...');
   const [deviceId, setDeviceId] = useState('');
+
+  // Animation refs
+  const headerOpacity = useRef(new Animated.Value(0)).current;
+  const cardTranslateY = useRef(new Animated.Value(40)).current;
 
   const getLocation = async () => {
     let { status } = await Location.requestForegroundPermissionsAsync();
@@ -80,35 +86,56 @@ function HomeScreen({ navigation }) {
 
     getUniqueDeviceId();
     getLocation();
+
+    // Animate header fade-in.
+    Animated.timing(headerOpacity, {
+      toValue: 1,
+      duration: 1500,
+      useNativeDriver: true,
+    }).start();
+
+    // Animate cards slide-up.
+    Animated.timing(cardTranslateY, {
+      toValue: 0,
+      duration: 1000,
+      delay: 500,
+      useNativeDriver: true,
+    }).start();
   }, []);
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.homeContainer}>
-        <Text style={styles.header}>ZenRunning</Text>
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Location Status</Text>
-          <Text style={styles.cardContent}>{locationStatus}</Text>
-          {location && (
-            <Text style={styles.cardContent}>
-              Latitude: {location.latitude.toFixed(5)} | Longitude: {location.longitude.toFixed(5)}
-            </Text>
-          )}
-        </View>
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Device Information</Text>
-          <Text style={styles.cardContent}>Device ID: {deviceId}</Text>
-        </View>
-        <View style={styles.buttonContainer}>
-          <TouchableOpacity style={styles.button} onPress={getLocation}>
-            <Text style={styles.buttonText}>Refresh Location</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.button, styles.mapButton]}
-            onPress={() => navigation.navigate('MapScreen', { userLocation: location })}
-          >
-            <Text style={styles.buttonText}>Open Map</Text>
-          </TouchableOpacity>
+      <View style={styles.gradientBackground}>
+        <View style={styles.homeContainer}>
+          <Animated.Text style={[styles.header, { opacity: headerOpacity }]}>
+            ZenRunning
+          </Animated.Text>
+          <Animated.View style={[styles.cardContainer, { transform: [{ translateY: cardTranslateY }] }]}>
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Location Status</Text>
+              <Text style={styles.cardContent}>{locationStatus}</Text>
+              {location && (
+                <Text style={styles.cardContent}>
+                  Latitude: {location.latitude.toFixed(5)} | Longitude: {location.longitude.toFixed(5)}
+                </Text>
+              )}
+            </View>
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Device Information</Text>
+              <Text style={styles.cardContent}>Device ID: {deviceId}</Text>
+            </View>
+          </Animated.View>
+          <View style={styles.buttonContainer}>
+            <TouchableOpacity style={styles.button} onPress={getLocation}>
+              <Text style={styles.buttonText}>Refresh Location</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.button, styles.mapButton]}
+              onPress={() => navigation.navigate('MapScreen', { userLocation: location })}
+            >
+              <Text style={styles.buttonText}>Open Map</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     </SafeAreaView>
@@ -122,6 +149,17 @@ function MapScreen({ route }) {
   const [routeCoordinates, setRouteCoordinates] = useState([]);
   const [alertShown, setAlertShown] = useState(false);
   const [disableDeviationCheck, setDisableDeviationCheck] = useState(false);
+
+  // Animation for header on MapScreen.
+  const mapHeaderOpacity = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(mapHeaderOpacity, {
+      toValue: 1,
+      duration: 1200,
+      delay: 300,
+      useNativeDriver: true,
+    }).start();
+  }, []);
 
   const routeCoordinatesRef = useRef(routeCoordinates);
   useEffect(() => {
@@ -152,7 +190,7 @@ function MapScreen({ route }) {
         (loc) => {
           const currentCoords = loc.coords;
           setLocation(currentCoords);
-          
+
           if (!disableDeviationCheck && routeCoordinatesRef.current.length > 0) {
             let minDistance = Infinity;
             routeCoordinatesRef.current.forEach((point) => {
@@ -164,7 +202,7 @@ function MapScreen({ route }) {
               );
               if (d < minDistance) minDistance = d;
             });
-            
+
             const threshold = 25;
             if (minDistance > threshold && !alertShown) {
               console.log("User is off course. Minimum distance from route:", minDistance);
@@ -231,15 +269,15 @@ function MapScreen({ route }) {
       Alert.alert("Error", "Invalid coordinates for route.");
       return;
     }
-  
+
     const url = `https://api.openrouteservice.org/v2/directions/foot-walking?api_key=${ORS_APIKEY}&start=${start.longitude},${start.latitude}&end=${end.longitude},${end.latitude}`;
     console.log(`Fetching route from: ${start.latitude}, ${start.longitude} to ${end.latitude}, ${end.longitude}`);
-  
+
     try {
       const response = await fetch(url);
       const data = await response.json();
       console.log('API Response:', data);
-  
+
       if (data.features && data.features[0] && data.features[0].geometry) {
         const route = data.features[0].geometry.coordinates.map(coord => ({
           latitude: coord[1],
@@ -257,9 +295,11 @@ function MapScreen({ route }) {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.mapScreenContainer}>
-        <Text style={styles.mapHeader}>Set Your Destination</Text>
-        <View style={styles.mapContainer}>
+      <View style={styles.gradientBackground}>
+        <View style={styles.mapScreenContainer}>
+          <Animated.Text style={[styles.mapHeader, { opacity: mapHeaderOpacity }]}>
+            Set Your Destination
+          </Animated.Text>
           <MapView
             style={styles.map}
             initialRegion={{
@@ -317,96 +357,92 @@ export default function App() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#f8f9fa'
+    backgroundColor: '#fff',
+  },
+  gradientBackground: {
+    flex: 1,
+    backgroundColor: '#ffffff', // Solid white background
   },
   homeContainer: {
     flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    justifyContent: 'space-evenly',
-    backgroundColor: '#f8f9fa'
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
   },
   header: {
-    fontSize: 32,
-    fontWeight: '600',
-    textAlign: 'center',
+    fontSize: 30,
+    fontWeight: 'bold',
+    color: '#333',
     marginBottom: 20,
-    color: '#333'
+  },
+  cardContainer: {
+    marginBottom: 30,
+    width: '100%',
+    paddingHorizontal: 10,
   },
   card: {
-    backgroundColor: '#fff',
-    borderRadius: 10,
+    backgroundColor: '#ffffff',
+    borderRadius: 8,
     padding: 15,
     marginVertical: 10,
     shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.1,
-    shadowRadius: 8,
+    shadowRadius: 5,
     elevation: 3,
   },
   cardTitle: {
     fontSize: 18,
-    fontWeight: '500',
-    marginBottom: 8,
-    color: '#555'
+    fontWeight: '600',
+    color: '#333',
   },
   cardContent: {
     fontSize: 16,
-    color: '#777'
+    color: '#666',
   },
   buttonContainer: {
-    marginTop: 20,
+    width: '100%',
+    alignItems: 'center',
+    paddingHorizontal: 10,
   },
   button: {
-    backgroundColor: '#3498db',
-    paddingVertical: 15,
+    backgroundColor: '#4CAF50',
+    paddingVertical: 12,
+    paddingHorizontal: 25,
     borderRadius: 25,
-    marginVertical: 10,
+    marginBottom: 15,
+    width: '80%',
+    justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#3498db',
-    shadowOpacity: 0.4,
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
     shadowRadius: 5,
-    elevation: 4,
-  },
-  mapButton: {
-    backgroundColor: '#2ecc71',
+    elevation: 3,
   },
   buttonText: {
+    fontSize: 18,
     color: '#fff',
-    fontSize: 16,
-    fontWeight: '600'
+    fontWeight: 'bold',
+  },
+  mapButton: {
+    backgroundColor: '#007BFF',
   },
   mapScreenContainer: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    padding: 20,
   },
   mapHeader: {
-    fontSize: 28,
-    fontWeight: '500',
-    textAlign: 'center',
-    paddingVertical: 15,
-    backgroundColor: '#fff',
-    marginHorizontal: 20,
-    marginTop: 20,
-    borderRadius: 10,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-    color: '#333'
-  },
-  mapContainer: {
-    flex: 1,
-    margin: 20,
-    borderRadius: 10,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+    fontSize: 30,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 20,
   },
   map: {
     width: '100%',
     height: '100%',
+    borderRadius: 10,
   },
 });
