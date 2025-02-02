@@ -94,6 +94,7 @@ function drawArea(coordinate, type) {
 
 
 function HomeScreen({ navigation }) {
+  const [address, setAddress] = useState('');  // State to store the address
   const [location, setLocation] = useState(null);
   const [locationStatus, setLocationStatus] = useState('Fetching location...');
   const [deviceId, setDeviceId] = useState('');
@@ -112,6 +113,29 @@ function HomeScreen({ navigation }) {
     setLocationStatus('Location fetched');
   };
 
+  useEffect(() => {
+    const fetchAddress = async () => {
+      try {
+        const response = await axios.post(
+          'https://runzen-api.w1111am.xyz/v1/get_address',
+          { uuid: deviceId },
+          {
+            headers: {
+              Authorization: 'ARRAY_BAG', // Include API key if required
+            },
+          }
+        );
+        setAddress(response.data.address); // Update state if data changes
+      } catch (error) {
+        console.log('Error fetching address:', error);
+      }
+    };
+  
+    fetchAddress(); // Initial fetch
+    const interval = setInterval(fetchAddress, 5000); // Fetch every 5 seconds
+  
+    return () => clearInterval(interval); // Cleanup on unmount
+  }, [deviceId]); // Re-run if deviceId changes
   
 
   
@@ -180,9 +204,12 @@ function HomeScreen({ navigation }) {
             </View>
 
             <View style={styles.card}>
-              <Text style={styles.cardTitle}>Suspicious Locations</Text>
-              <Text style={styles.cardContent}>Address: </Text>
+            <Text style={styles.cardTitle}>Suspicious Locations</Text>
+            <Text style={styles.cardContent}>
+              Address: {address ? address : "Fetching..."} {/* Show the address once it's available */}
+            </Text>
             </View>
+
           </Animated.View>
           <View style={styles.buttonContainer}>
         <TouchableOpacity style={styles.button} onPress={getLocation}>
@@ -249,7 +276,6 @@ function HomeScreen({ navigation }) {
 }
 
 function MapScreen({ route }) {
-  const [address, setAddress] = useState('');  // State to store the address
   const { userLocation, deviceId } = route.params; 
   const [location, setLocation] = useState(userLocation);
   const [destinationCoords, setDestinationCoords] = useState(null);
@@ -266,32 +292,6 @@ function MapScreen({ route }) {
       useNativeDriver: true,
     }).start();
   }, []);
-
-  useEffect(() => {
-    if (routeCoordinates.length > 0) {
-      // Let's say you want to check safety for the first coordinate in the route
-      const firstCoordinate = routeCoordinates[0];
-      fetchSafetyLabel(firstCoordinate.latitude, firstCoordinate.longitude);
-    }
-  }, [routeCoordinates]);
-
-  useEffect(() => {
-    // Fetch the address from the server when the component mounts
-    const fetchAddress = async () => {
-      try {
-        const response = await axios.post('http://127.0.0.1:8000/v1/get_address', { uuid: uuid }, {
-          headers: {
-            'Authorization': 'Your_API_Key_Here',  // Include the API key if required
-          }
-        });
-        setAddress(response.data.address);  // Set the address from the response
-      } catch (error) {
-        console.error("Error fetching address:", error);
-      }
-    };
-
-    fetchAddress();  // Call the function to fetch the address
-  }, []);  
 
   const getAddress = async (lat, lng) => {
     const url = `https://api.openrouteservice.org/geocode/reverse?point.lon=${lng}&point.lat=${lat}&api_key=${ORS_APIKEY}`;
@@ -346,12 +346,12 @@ function MapScreen({ route }) {
         const response = await axios.post(
           'https://runzen-api.w1111am.xyz/v1/update_address',
           {
-            uuid: uuid,
+            uuid: deviceId,
             address: address,
           },
           {
             headers: {
-              Authorization: serverKeyHash,  
+              Authorization: 'ARRAY_BAG',  
             },
           }
         );
@@ -366,6 +366,7 @@ function MapScreen({ route }) {
       console.log("Location not available yet.");
     }
   };
+
 
   
 
@@ -390,7 +391,7 @@ function MapScreen({ route }) {
               if (d < minDistance) minDistance = d;
             });
 
-            const threshold = 1; 
+            const threshold = 50; 
             if (minDistance > threshold && !alertShown) {
               console.log("User is off course. Minimum distance from route:", minDistance);
               setAlertShown(true);
@@ -476,7 +477,7 @@ function MapScreen({ route }) {
                       console.log("Password validation response:", data);
                       if (data.message === "Password validated successfully") {
                         if (soundObject) {
-                          await soundObject.stopAsync();
+                          await soundObject.stopAsync(); // Stop the sound
                         }
                         setDisableDeviationCheck(true);
                         setAlertShown(false);
@@ -513,10 +514,6 @@ function MapScreen({ route }) {
     const tappedLocation = e.nativeEvent.coordinate;
     setDisableDeviationCheck(false);
     setAlertShown(false);
-    
-    fetchSafetyLabel(tappedLocation.latitude, tappedLocation.longitude);
-
-
     if (
       !destinationCoords ||
       (destinationCoords.latitude !== tappedLocation.latitude ||
@@ -527,36 +524,34 @@ function MapScreen({ route }) {
     }
   };
 
-  const fetchSafetyLabel = async (latitude, longitude) => {
-    const safetyApiUrl = `https://runzen-api.w1111am.xyz/v1/predict`;
-
+  const fetchRoute = async (start, end) => {
+    if (!start || !end || !start.longitude || !start.latitude || !end.longitude || !end.latitude) {
+      Alert.alert("Error", "Invalid coordinates for route.");
+      return;
+    }
+    const url = `https://api.openrouteservice.org/v2/directions/foot-walking?api_key=${ORS_APIKEY}&start=${start.longitude},${start.latitude}&end=${end.longitude},${end.latitude}`;
+    console.log(`Fetching route from: ${start.latitude}, ${start.longitude} to ${end.latitude}, ${end.longitude}`);
     try {
-      const response = await fetch(safetyApiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': authorization,
-        },
-        body: JSON.stringify({
-          uuid: uuid,  
-          latitude: latitude,
-          longitude: longitude,
-        }),
-      });
-      
+      const response = await fetch(url);
       const data = await response.json();
-      if (data && data.safety) {
-        return data.safety;  
+      console.log('API Response:', data);
+      if (data.features && data.features[0] && data.features[0].geometry) {
+        const route = data.features[0].geometry.coordinates.map(coord => ({
+          latitude: coord[1],
+          longitude: coord[0]
+        }));
+
+        console.log('Route Coordinates:', route);
+
+        setRouteCoordinates(route);
       } else {
-        return 'unknown';  
+        Alert.alert('Error', 'Route not found.');
       }
     } catch (error) {
-      console.error("Error fetching safety label:", error);
-      return 'unknown';  
+      console.error('Error fetching route:', error);
+      Alert.alert("Error", "Failed to fetch route.");
     }
   };
-
-
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -573,8 +568,6 @@ function MapScreen({ route }) {
               latitudeDelta: 0.0922,
               longitudeDelta: 0.0421,
             }}
-
-            
             onPress={handleMapTap}
             showsUserLocation={true}
             followsUserLocation={true}
@@ -614,7 +607,6 @@ function MapScreen({ route }) {
 }
 
 const Stack = createStackNavigator();
-
 
 export default function App() {
   return (
