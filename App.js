@@ -202,10 +202,16 @@ function MapScreen({ route }) {
               if (d < minDistance) minDistance = d;
             });
 
-            const threshold = 25;
+            const threshold = 1; // CHANGE THIS TO SOMETHING BETTER LATER
             if (minDistance > threshold && !alertShown) {
               console.log("User is off course. Minimum distance from route:", minDistance);
               setAlertShown(true);
+
+              const timeout = setTimeout(() => {
+                console.log("oh no");
+                setAlertShown(false); // Optionally, hide the alert after timeout
+              }, 10000); // 10 seconds timeout
+
               if (Platform.OS === 'ios') {
                 Alert.prompt(
                   "Are you OK?",
@@ -213,6 +219,7 @@ function MapScreen({ route }) {
                   (password) => {
                     if (password === "hello") {
                       setDisableDeviationCheck(true);
+                      clearTimeout(timeout); // Correct password, cancel the timeout
                     } else {
                       console.log("oh no");
                     }
@@ -233,8 +240,10 @@ function MapScreen({ route }) {
                     }
                   ]
                 );
+                // This timeout will trigger after 10 seconds if no response.
               }
             }
+
           }
         }
       );
