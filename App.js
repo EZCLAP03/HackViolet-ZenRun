@@ -20,6 +20,9 @@ import MapView, { Marker, Polyline, Circle } from 'react-native-maps';
 import uuid from 'react-native-uuid';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
+import { Modal, ActivityIndicator} from 'react-native';
+
+
 
 const ORS_APIKEY = '5b3ce3597851110001cf6248308d79ba8f934d9a8c85e2893b04c563'; // Replace with your actual API key
 
@@ -127,10 +130,10 @@ function HomeScreen({ navigation }) {
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.gradientBackground}>
         <View style={styles.homeContainer}>
-          <Animated.Text style={[styles.header, { opacity: headerOpacity }]}>
+          <Text style={styles.header}>
             ZenRun
-          </Animated.Text>
-          <Animated.View style={[styles.cardContainer, { transform: [{ translateY: cardTranslateY }] }]}>
+          </Text>
+          <View style={styles.cardContainer}>
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Location Status</Text>
               <Text style={styles.cardContent}>{locationStatus}</Text>
@@ -140,14 +143,14 @@ function HomeScreen({ navigation }) {
                 </Text>
               )}
             </View>
-     
+
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Suspicious Locations</Text>
               <Text style={styles.cardContent}>
                 Address: {address ? address : "Fetching..."}
               </Text>
             </View>
-          </Animated.View>
+          </View>
 
           <View style={styles.buttonContainer}>
             <TouchableOpacity style={styles.button} onPress={getLocation}>
@@ -222,6 +225,8 @@ function MapScreen({ route }) {
   const [disableDeviationCheck, setDisableDeviationCheck] = useState(false);
   const [safetyScores, setSafetyScores] = useState([]);
   const [averageSafetyScore, setAverageSafetyScore] = useState(null);
+  const [isPredicting, setIsPredicting] = useState(false);
+
 
   const mapHeaderOpacity = useRef(new Animated.Value(0)).current;
   useEffect(() => {
@@ -303,6 +308,7 @@ function MapScreen({ route }) {
     }
   };
 
+  
  // Route-based prediction, but sending each lat/lon individually
  const predictSafetyForRoute = async (routeCoordinates) => {
     try {
@@ -415,7 +421,7 @@ function MapScreen({ route }) {
               if (d < minDistance) minDistance = d;
             });
 
-            const threshold = 50; 
+            const threshold = 20; 
             if (minDistance > threshold && !alertShown) {
               console.log("User is off course. Minimum distance from route:", minDistance);
               setAlertShown(true);
@@ -439,7 +445,7 @@ function MapScreen({ route }) {
                   } catch (error) {
                     console.error("Error calling timeout API:", error);
                   }
-                  await new Promise(resolve => setTimeout(resolve, 10000));
+                  await new Promise(resolve => setTimeout(resolve, 20000));
                   try {
                     const checkResponse = await fetch("https://runzen-api.w1111am.xyz/v1/timeout_check", {
                       method: "POST",
@@ -556,6 +562,7 @@ function MapScreen({ route }) {
     console.log(`Fetching route from: ${start.latitude}, ${start.longitude} to ${end.latitude}, ${end.longitude}`);
 
     try {
+      setIsPredicting(true);  
       const response = await fetch(url);
       const data = await response.json();
       console.log('API Response:', data);
@@ -582,17 +589,29 @@ function MapScreen({ route }) {
         await predictSafetyForRoute(partialForApi);
 
         // Now do the overall route safety check
-        await handleRoutePrediction();
       } else {
         Alert.alert('Error', 'Route not found.');
       }
     } catch (error) {
       console.error('Error fetching route:', error);
       Alert.alert("Error", "Failed to fetch route.");
+    } finally { 
+      setIsPredicting(false);
     }
   };
 
   return (
+
+    <>
+    <Modal visible={isPredicting} transparent={true} animationType="fade">
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)' }}>
+        <View style={{ padding: 20, backgroundColor: 'white', borderRadius: 10 }}>
+          <ActivityIndicator size="large" color="blue" />
+          <Text style={{ marginTop: 10 }}>Predicting Safety...</Text>
+        </View>
+      </View>
+    </Modal>
+
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.gradientBackground}>
         <View style={styles.mapScreenContainer}>
@@ -637,6 +656,7 @@ function MapScreen({ route }) {
         </View>
       </View>
     </SafeAreaView>
+    </>
   );
 }
 
