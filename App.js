@@ -334,7 +334,6 @@ function MapScreen({ route }) {
       for (const point of pointsToCheck) {
         const { latitude, longitude } = point;
 
-        // Send each lat/lon individually (max 30)
         const response = await axios.post(
           'https://runzen-api.w1111am.xyz/v1/predict',
           {
@@ -421,7 +420,7 @@ function MapScreen({ route }) {
               if (d < minDistance) minDistance = d;
             });
 
-            const threshold = 20; 
+            const threshold = 50; 
             if (minDistance > threshold && !alertShown) {
               console.log("User is off course. Minimum distance from route:", minDistance);
               setAlertShown(true);
@@ -445,7 +444,7 @@ function MapScreen({ route }) {
                   } catch (error) {
                     console.error("Error calling timeout API:", error);
                   }
-                  await new Promise(resolve => setTimeout(resolve, 20000));
+                  await new Promise(resolve => setTimeout(resolve, 10000));
                   try {
                     const checkResponse = await fetch("https://runzen-api.w1111am.xyz/v1/timeout_check", {
                       method: "POST",
@@ -557,38 +556,47 @@ function MapScreen({ route }) {
       Alert.alert("Error", "Invalid coordinates for route.");
       return;
     }
-
+  
     const url = `https://api.openrouteservice.org/v2/directions/foot-walking?api_key=${ORS_APIKEY}&start=${start.longitude},${start.latitude}&end=${end.longitude},${end.latitude}`;
     console.log(`Fetching route from: ${start.latitude}, ${start.longitude} to ${end.latitude}, ${end.longitude}`);
-
+  
     try {
       setIsPredicting(true);  
       const response = await fetch(url);
       const data = await response.json();
       console.log('API Response:', data);
-
+  
       if (data.features && data.features[0] && data.features[0].geometry) {
         // Build the full route
         const fullRoute = data.features[0].geometry.coordinates.map(coord => ({
           latitude: coord[1],
           longitude: coord[0],
         }));
-
-        // For partial route, 40% example
-        const sliceCount = Math.floor(fullRoute.length * 0.4);
-        const partialRoute = fullRoute.slice(0, sliceCount);
-
-        console.log('Full Route Coordinates (length):', fullRoute.length);
-        console.log('Using Partial Route (length):', partialRoute.length);
-
-        const sampledCount = Math.floor(fullRoute.length * 0.4);
-        const partialForApi = fullRoute.slice(0, sampledCount);
-        // We only set routeCoordinates to the partial route
+  
+        // Define how many points you want to sample (e.g., 10 points)
+        const numberOfPoints = 5; // Adjust as needed
+        const sampledPoints = [];
+  
+        // Add the initial point (start)
+        sampledPoints.push(fullRoute[0]);
+  
+        // Sample evenly spaced points along the full route, excluding the first point
+        for (let i = 1; i < numberOfPoints - 1; i++) {
+          const index = Math.floor(i * fullRoute.length / numberOfPoints); // Evenly spaced index
+          sampledPoints.push(fullRoute[index]);
+        }
+  
+        // Add the final point (end)
+        sampledPoints.push(fullRoute[fullRoute.length - 1]);
+  
+        console.log('Sampled Points for Safety Prediction:', sampledPoints);
+  
+        // We only set routeCoordinates to the full route (if needed elsewhere in your app)
         setRouteCoordinates(fullRoute);
-        
-        await predictSafetyForRoute(partialForApi);
-
-        // Now do the overall route safety check
+  
+        // Call safety prediction for the sampled points
+        await predictSafetyForRoute(sampledPoints);
+  
       } else {
         Alert.alert('Error', 'Route not found.');
       }
@@ -599,6 +607,7 @@ function MapScreen({ route }) {
       setIsPredicting(false);
     }
   };
+  
 
   return (
 
